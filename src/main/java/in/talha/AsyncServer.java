@@ -6,8 +6,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.servlet.AsyncContext;
@@ -24,6 +23,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.mongodb.Block;
 import com.mongodb.async.SingleResultCallback;
 import com.mongodb.async.client.MongoClient;
 import com.mongodb.async.client.MongoClients;
@@ -32,14 +32,27 @@ import com.mongodb.async.client.MongoDatabase;
 
 public class AsyncServer {
 	public static class AsyncServlet extends HttpServlet {
+		private static final String COLCTN = "test";
+		private static final String DB = "testdb";
+		private static final String SUCCESSFULLY_INSERTED = "Successfully inserted";
+		private static final String UNABLE_TO_PERFORM_THE_OPRATION = "Unable to perform the opration";
+		private static final String NA = "NA";
+		private static final String LST = "lst";
+		private static final String STATUS = "status";
+		private static final String SUCCESS = "Success";
+		private static final String CNT = "Count";
+		static HashMap<String, Object> dataCache = new HashMap<String, Object>();
+
 		@Override
 		protected void doGet(final HttpServletRequest req, final HttpServletResponse resp)
 				throws ServletException, IOException {
 
 			final AsyncContext ctxt = req.startAsync();
+
 			ctxt.start(new Runnable() {
 
 				public void run() {
+					int i;
 					System.err.println("In Async run GET");
 					resp.setStatus(HttpStatus.OK_200);
 					resp.setContentType("application/json");
@@ -47,30 +60,65 @@ public class AsyncServer {
 						final String cntxtPath = req.getRequestURI();
 						final String id = cntxtPath.split("/")[2];
 						MongoCollection<Document> collection = getTable();
-						//
-						SingleResultCallback<List<Document>> callbackWhenFinishedData = new SingleResultCallback<List<Document>>() {
-
-							public void onResult(final List<Document> result, final Throwable t) {
+						dataCache.put(id, NA);
+						
+						dataCache.put(id + CNT, NA);
+						Block<Document> printDocumentBlock = new Block<Document>() {
+							public void apply(final Document document) {
+								String json = document.toJson();
+								System.out.println(">>>" + json);
+								if (NA.equals(dataCache.get(id)))
+									dataCache.put(id, json);
+								else {
+									dataCache.put(id, dataCache.get(id) + "," + json);
+								}
 							}
 						};
-						List<Document> resList = new ArrayList<Document>();
-						collection.find(eq("id", id)).maxTime(200, TimeUnit.MILLISECONDS).into(resList,
-								callbackWhenFinishedData);
-						Thread.sleep(200);
-						System.out.println("size : " + resList.size());
-						JSONObject jsnob = new JSONObject();
-						JSONArray jArr = new JSONArray();
-						for (int i = 0; i < resList.size(); i++) {
-							jArr.put(new JSONObject(resList.get(i).toJson()));
+
+						SingleResultCallback<Void> callbackWhenFinished = new SingleResultCallback<Void>() {
+
+							public void onResult(final Void result, final Throwable t) {
+								System.out.println("Operation Finished!");
+							}
+						};
+
+						collection.count(eq("id", id), new SingleResultCallback<Long>() {
+
+							public void onResult(final Long count, final Throwable t) {
+								System.out.println(count);
+								dataCache.put(id + CNT, count);
+							}
+						});
+						collection.find(eq("id", id)).maxTime(200, TimeUnit.MILLISECONDS).forEach(printDocumentBlock,
+								callbackWhenFinished);
+						while (NA.equals(dataCache.get(id + CNT))) {
+
 						}
-						jsnob.put("lst", jArr);
-						jsnob.put("status", "Success");
+						Long count = (Long) dataCache.get(id + CNT);
+						System.out.println(CNT + count);
+						while (NA.equals(dataCache.get(id)) && count != 0) {
+
+						}
+
+						System.out.println("hm : " + dataCache.get(id));
+						JSONObject jsnob = new JSONObject();
+						JSONArray jArr = null;
+						if (dataCache.get(id) != null && !NA.equals(dataCache.get(id))
+								&& (Long) dataCache.get(id + CNT) > 0)
+							jArr = new JSONArray("[" + dataCache.get(id) + "]");
+						if (jArr == null) {
+							jArr = new JSONArray();
+						}
+						jsnob.put(LST, jArr);
+						jsnob.put(STATUS, SUCCESS);
 						System.out.println("jsnob: " + jsnob);
 						resp.getWriter().println(jsnob);
 					} catch (Exception e) {
 						e.printStackTrace();
 						try {
-							resp.getWriter().println("{\"status\":\"Unable to perform the opration\"}");
+							JSONObject jsnob = new JSONObject();
+							jsnob.put(STATUS, UNABLE_TO_PERFORM_THE_OPRATION);
+							resp.getWriter().println(jsnob);
 						} catch (IOException e1) {
 							e1.printStackTrace();
 						}
@@ -91,7 +139,7 @@ public class AsyncServer {
 
 				public void run() {
 					System.err.println("In Async run POST");
-					System.err.println("In Async run POST");
+
 					resp.setStatus(HttpStatus.OK_200);
 					resp.setContentType("application/json");
 					try {
@@ -102,19 +150,19 @@ public class AsyncServer {
 						SingleResultCallback<Void> singleResultCallback = new SingleResultCallback<Void>() {
 
 							public void onResult(final Void result, final Throwable t) {
-								System.out.println("Success");
+								System.out.println(SUCCESS);
 
 							}
 						};
 						collection.insertOne(doc, singleResultCallback);
 						JSONObject jsnob = new JSONObject();
-						jsnob.put("status", "Successfully inserted");
+						jsnob.put(STATUS, SUCCESSFULLY_INSERTED);
 						resp.getWriter().println(jsnob);
 					} catch (Exception e) {
 						e.printStackTrace();
 						try {
 							JSONObject jsnob = new JSONObject();
-							jsnob.put("status", "Unable to perform the opration");
+							jsnob.put(STATUS, UNABLE_TO_PERFORM_THE_OPRATION);
 							resp.getWriter().println(jsnob);
 						} catch (Exception e1) {
 							e1.printStackTrace();
@@ -129,8 +177,8 @@ public class AsyncServer {
 		private static MongoCollection<Document> getTable() {
 			MongoClient mongo = MongoClients.create();
 
-			MongoDatabase db = mongo.getDatabase("testdb");
-			MongoCollection<Document> collection = db.getCollection("test");
+			MongoDatabase db = mongo.getDatabase(DB);
+			MongoCollection<Document> collection = db.getCollection(COLCTN);
 			return collection;
 		}
 	}
