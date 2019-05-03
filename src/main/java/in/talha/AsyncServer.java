@@ -42,6 +42,7 @@ public class AsyncServer {
 				public void run() {
 					System.err.println("In Async run GET");
 					resp.setStatus(HttpStatus.OK_200);
+					resp.setContentType("application/json");
 					try {
 						final String cntxtPath = req.getRequestURI();
 						final String id = cntxtPath.split("/")[2];
@@ -91,6 +92,7 @@ public class AsyncServer {
 				public void run() {
 					System.err.println("In Async run POST");
 					resp.setStatus(HttpStatus.OK_200);
+					resp.setContentType("application/json");
 					try {
 						String body = getBody(req);
 						Document doc = Document.parse(body);
