@@ -32,6 +32,7 @@ import com.mongodb.async.client.MongoDatabase;
 
 public class AsyncServer {
 	public static class AsyncServlet extends HttpServlet {
+		private static final String STORED = "Stored";
 		private static final String COLCTN = "test";
 		private static final String DB = "testdb";
 		private static final String SUCCESSFULLY_INSERTED = "Successfully inserted";
@@ -143,21 +144,26 @@ public class AsyncServer {
 					resp.setStatus(HttpStatus.OK_200);
 					resp.setContentType("application/json");
 					try {
-						String body = getBody(req);
+						final String body = getBody(req);
 						Document doc = Document.parse(body);
 						MongoCollection<Document> collection = getTable();
-
+						dataCache.put(body, NA);
 						SingleResultCallback<Void> singleResultCallback = new SingleResultCallback<Void>() {
 
 							public void onResult(final Void result, final Throwable t) {
 								System.out.println(SUCCESS);
+								dataCache.put(body, STORED);
 
 							}
 						};
 						collection.insertOne(doc, singleResultCallback);
+						while (NA.equals(dataCache.get(body)) ) {
+
+						}
 						JSONObject jsnob = new JSONObject();
-						jsnob.put(STATUS, SUCCESSFULLY_INSERTED);
+						jsnob.put(STATUS, STORED.equals(dataCache.get(body)) ?SUCCESSFULLY_INSERTED: UNABLE_TO_PERFORM_THE_OPRATION );
 						resp.getWriter().println(jsnob);
+						
 					} catch (Exception e) {
 						e.printStackTrace();
 						try {
