@@ -30,7 +30,7 @@ import com.mongodb.async.client.MongoClients;
 import com.mongodb.async.client.MongoCollection;
 import com.mongodb.async.client.MongoDatabase;
 
-public class AsyncServer {
+public class AsyncServer_HashMap {
 	public static class AsyncServlet extends HttpServlet {
 		private static final String STORED = "Stored";
 		private static final String COLCTN = "test";
