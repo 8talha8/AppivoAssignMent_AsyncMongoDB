@@ -57,19 +57,19 @@ public class AsyncServer_WaitNotify {
 						//
 						List<Document> resList = new ArrayList<Document>();
 						final AtomicReference<Throwable> error = new AtomicReference<>();
-						final CountDownLatch waiter = new CountDownLatch(1);
 
 						SingleResultCallback<List<Document>> callbackWhenFinishedData = new SingleResultCallback<List<Document>>() {
 							
 							@Override
 							
 							public void onResult(final List<Document> result, final Throwable t) {
+								synchronized(this) {
 								if (t == null) {
 									error.set(t);
 								} else {
 									System.out.println("success");
 								}
-								synchronized(this) {
+								
 								notify();
 							}
 							}
